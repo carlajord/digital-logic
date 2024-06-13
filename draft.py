@@ -1,6 +1,6 @@
 from dash import Dash, html, Input, Output, callback
 import dash_cytoscape as cyto
-from build_network import Network
+from src.build_network import Network
 
 nw = Network()
 
@@ -29,6 +29,7 @@ def generate_elements(node):
         return nw.network
     
     elements = nw.update(node)
+
     return elements
 
 
