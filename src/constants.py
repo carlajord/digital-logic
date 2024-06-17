@@ -4,8 +4,8 @@ SIZE_FACTOR = 20
 # Node status classes
 OFF_NODE = 'off_node'
 ON_NODE = 'on_node'
-IDLE_NODE = 'idle_node'
-ALL_STATUS_CLASSES = [OFF_NODE, ON_NODE, IDLE_NODE]
+IDLE_ON = 'idle_on'
+IDLE_OFF = 'idle_off'
 
 # Edges classes
 PRESSURE = 'pressure'

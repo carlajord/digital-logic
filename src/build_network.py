@@ -16,6 +16,8 @@ class Network():
         self.stylesheet = self.make_styles(self.stylesheet_def)
         self.network = self.nodes + self.edges
 
+        self.nodes_to_update = []
+
     def get_valve_svg(self, size, color, angle=0):
         svg = f'<svg fill="{color}" width="{size}px" height="{size}px" viewBox="0 0 256 256" id="Flat" xmlns="http://www.w3.org/2000/svg" stroke="{color}" transform="rotate({angle})"> <g id="SVGRepo_bgCarrier" stroke-width="0"/> <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/> <g id="SVGRepo_iconCarrier"> <path d="M208,196.68652A15.9999,15.9999,0,0,1,196.68652,224H59.31348A15.9999,15.9999,0,0,1,48,196.68652l68.68457-68.68506L48,59.31348A15.9999,15.9999,0,0,1,59.31348,32h137.373A15.9999,15.9999,0,0,1,208,59.31348l-68.68457,68.68506Z"/> </g> </svg>'
         return 'data:image/svg+xml;utf-8,' + urllib.parse.quote(svg, safe='')
@@ -24,13 +26,13 @@ class Network():
         nodes = [
             ['source_1', 'Source 1', 0, 0, f'node {cn.OFF_NODE}'],
             ['valve_1', '', 0, 5, f'node {cn.VALVE_VT_OFF}'],
-            ['connection_1', '', 0, 10, f'node {cn.IDLE_NODE} {cn.CONNECTION}'],
+            ['connection_1', '', 0, 10, f'node {cn.IDLE_OFF} {cn.CONNECTION}'],
             ['valve_2', '', 0, 15, f'node {cn.VALVE_VT_OFF}'],
-            ['sink_1', 'Sink 1', 0, 20, f'node {cn.IDLE_NODE}'],
+            ['sink_1', 'Sink 1', 0, 20, f'node {cn.IDLE_OFF}'],
             ['valve_3', '', 5, 10, f'node {cn.VALVE_HZ_OFF}'],
-            ['observer_1', 'Equipment 1', 10, 10, f'node {cn.IDLE_NODE} {cn.EQUIPMENT}'],
+            ['observer_1', 'Equipment 1', 10, 10, f'node {cn.IDLE_OFF} {cn.EQUIPMENT}'],
             ['valve_4', '', 15, 10, f'node {cn.VALVE_HZ_OFF}'],
-            ['sink_2', 'Sink 1', 20, 10, f'node {cn.IDLE_NODE}'],
+            ['sink_2', 'Sink 1', 20, 10, f'node {cn.IDLE_OFF}'],
         ]
         edges = [
             ['source_1', 'valve_1', cn.OFFLINE],
@@ -46,6 +48,7 @@ class Network():
             ['node', {'content': 'data(label)'}],
             [f'.{cn.OFF_NODE}', {'background-color': 'red', 'line-color': 'red'}],
             [f'.{cn.ON_NODE}', {'background-color': 'green', 'line-color': 'green'}],
+            [f'.{cn.IDLE_ON}', {'background-color': 'orange', 'line-color': 'orange'}],
             [f'.{cn.PRESSURE}', {'line-color': 'green'}],
             [f'.{cn.FLOW}', {'line-color': 'orange'}],
             [f'.{cn.OFFLINE}', {'line-color': 'grey'}],
@@ -152,38 +155,42 @@ class Network():
     
     def change_network_status(self, node_changed, node_classes):
 
-        # get changed node index in nodes
-        idx_node = self.get_node_idx(node_changed)
-        
         # --- update nodes
-        self.update_nodes(node_changed, node_classes, idx_node)
+        self.update_nodes(node_changed, node_classes)
 
         # --- update edges
         self.update_edges(node_changed, node_classes[cn.CLASS_NODE_STATUS])
 
         # if downstream node is sink, equipment or connection, trigger change node on downstream node
-        _, downstream_nodes = self.get_neighbor_nodes_idx(node_changed)
+        #_, downstream_nodes = self.get_neighbor_nodes_idx(node_changed)
 
-        for idx in downstream_nodes:
-
-            child_node = self.nodes_def[idx][cn.NODE_ID]
-            child_class = self.nodes_def[idx][cn.NODE_CLASS].split()
-
-            # update idle nodes
-            if child_node.startswith(cn.SINK) or child_node.startswith(cn.EQUIPMENT) or child_node.startswith(cn.CONNECTION):
-                self.change_network_status(child_node, child_class)
+        #for idx in downstream_nodes:
+        #    child_node = self.nodes_def[idx][cn.NODE_ID]
+        #    child_class = self.nodes_def[idx][cn.NODE_CLASS].split()
+        #    # update idle nodes
+        #    if child_node.startswith(cn.SINK) or child_node.startswith(cn.EQUIPMENT) or child_node.startswith(cn.CONNECTION):
+        #        self.change_network_status(child_node, child_class)
             
         return node_classes[cn.CLASS_NODE_STATUS]
     
-    def update_nodes(self, node_changed, node_classes, idx):
+    def update_nodes(self, node_changed, node_classes):
+        
+        idx = self.get_node_idx(node_changed)
 
         # if connection or equipment: follow mapping for upstream edge
-        if node_changed.startswith(cn.SINK) or node_changed.startswith(cn.EQUIPMENT) or node_changed.startswith(cn.CONNECTION):
+        if node_changed.startswith(cn.SINK):
             upstream_edge_class, _ = self.get_neighbor_edges_class_from_node(node_changed)
             for edc in upstream_edge_class:
-                if edc == cn.OFFLINE: node_classes[cn.CLASS_NODE_STATUS] = cn.IDLE_NODE
+                if edc == cn.OFFLINE: node_classes[cn.CLASS_NODE_STATUS] = cn.IDLE_OFF
                 else: node_classes[cn.CLASS_NODE_STATUS] = cn.ON_NODE
         
+        elif node_changed.startswith(cn.EQUIPMENT) or node_changed.startswith(cn.CONNECTION):
+            upstream_node_class, _ = self.get_neighbor_node_class_from_node(node_changed)
+            for nd in upstream_node_class:
+                status = nd.split()[cn.CLASS_NODE_STATUS]
+                if status.endswith('on'): node_classes[cn.CLASS_NODE_STATUS] = cn.IDLE_ON
+                else: node_classes[cn.CLASS_NODE_STATUS] = cn.IDLE_OFF
+            
         # if source: change on/off
         elif node_changed.startswith(cn.SOURCE):
             if node_classes[cn.CLASS_NODE_STATUS] == cn.ON_NODE: node_classes[cn.CLASS_NODE_STATUS] = cn.OFF_NODE
@@ -226,8 +233,34 @@ class Network():
 
         for val in downstream_edges:
             self.edges_def[val][cn.EDGE_CLASS] = new_edge_class
+
+        # if edge downstream node is idle, change node status and rerun update edges
+        self.check_idle_nodes_downstream(node_changed)
         
         return new_edge_class
+
+    def check_idle_nodes_downstream(self, node_changed):
+        # if downstream node is equipment or connection, trigger change node on downstream node
+        _, downstream_nodes = self.get_neighbor_nodes_idx(node_changed)
+
+        for idx in downstream_nodes:
+            child_node = self.nodes_def[idx][cn.NODE_ID]
+            child_class = self.nodes_def[idx][cn.NODE_CLASS].split()
+
+            # recursively update entire network until the sink
+            if child_node.startswith(cn.SINK): return
+
+            if child_node.startswith(cn.EQUIPMENT) or child_node.startswith(cn.CONNECTION):
+                self.update_nodes(child_node, child_class)
+
+            self.update_edges(child_node, child_class[cn.CLASS_NODE_STATUS])
+
+
+    def update_all_edges(self):
+
+        for idx, node in enumerate(self.edges_def[cn.EDGE_SOURCE]):
+            node_class = self.nodes_def[idx][cn.NODE_CLASS].split()
+            self.update_edges(node, node_class[cn.CLASS_NODE_STATUS])
 
     def build_network(self):
         new_nodes = self.make_nodes(self.nodes_def)
@@ -245,6 +278,8 @@ class Network():
         # Update node and edges accordingly
         node_classes = raw['classes'].split()
         self.change_network_status(node_changed, node_classes)
+
+        #self.update_all_edges()
 
         # Rebuild updated network
         elements = self.build_network()
