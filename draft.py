@@ -1,6 +1,8 @@
 from dash import Dash, html, Input, Output, callback
 import dash_cytoscape as cyto
 from src.build_network import Network
+import webbrowser
+from threading import Timer
 
 nw = Network()
 
@@ -32,6 +34,9 @@ def generate_elements(node):
 
     return elements
 
+def open_browser():
+	webbrowser.open_new("http://localhost:{}".format(8050))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    Timer(1, open_browser).start();
+    app.run(debug=False)

@@ -76,6 +76,7 @@ class Network():
             {
                 'data': {'id': short, 'label': label},
                 'position': {'x': x*cn.SIZE_FACTOR, 'y': y*cn.SIZE_FACTOR},
+                'locked': True,
                 'classes': style_class
             }
             for short, label, x, y, style_class in network_node_definition
